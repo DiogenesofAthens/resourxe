@@ -22,6 +22,11 @@ class QueryRequest(BaseModel):
     carbon_weight: float = Field(default=0.5, ge=0.0, le=1.0)
     limit: int = Field(default=50, ge=1, le=100)
     top_n: int = Field(default=10, ge=1, le=50)
+    providers: list[str] | None = Field(
+        default=None,
+        description="Restrict to specific providers: 'vast', 'lambda', 'runpod'. "
+                    "Omit to query all configured providers.",
+    )
 
 
 @app.get("/")
@@ -37,7 +42,11 @@ def health():
 @app.post("/api/query")
 def query(req: QueryRequest):
     try:
-        results = scorer.fetch_and_score(limit=req.limit, carbon_weight=req.carbon_weight)
+        results = scorer.fetch_and_score(
+            limit=req.limit,
+            carbon_weight=req.carbon_weight,
+            providers=req.providers,
+        )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc))
 
@@ -59,10 +68,13 @@ def query(req: QueryRequest):
             }
         )
 
+    providers_seen = sorted({r["provider"] for r in results})
+
     return {
         "results": clean,
         "carbon_weight": req.carbon_weight,
         "total_fetched": len(results),
+        "providers": providers_seen,
     }
 
 

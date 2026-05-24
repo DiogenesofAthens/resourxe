@@ -7,7 +7,7 @@ import time
 # Allow running as a script from the project root or directly
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from engine import vast, watttime
+from engine import vast, lambda_labs, runpod, watttime
 
 
 def score(instances: list[dict], carbon_weight: float = 0.5) -> list[dict]:
@@ -69,8 +69,49 @@ def score(instances: list[dict], carbon_weight: float = 0.5) -> list[dict]:
 def fetch_and_score(
     limit: int = 50,
     carbon_weight: float = 0.5,
+    providers: list[str] | None = None,
 ) -> list[dict]:
-    instances = vast.fetch_instances(limit=limit)
+    """
+    Fetch instances from all configured providers, merge, and score.
+
+    providers: restrict to a subset, e.g. ["vast", "lambda", "runpod"].
+               None (default) fetches from all available providers.
+    """
+    if providers is None:
+        providers = ["vast", "lambda", "runpod"]
+
+    instances: list[dict] = []
+    errors: list[str] = []
+
+    if "vast" in providers:
+        try:
+            instances.extend(vast.fetch_instances(limit=limit))
+        except Exception as exc:
+            errors.append(f"vast: {exc}")
+
+    if "lambda" in providers:
+        try:
+            instances.extend(lambda_labs.fetch_instances(limit=limit))
+        except Exception as exc:
+            errors.append(f"lambda: {exc}")
+
+    if "runpod" in providers:
+        try:
+            instances.extend(runpod.fetch_instances(limit=limit))
+        except Exception as exc:
+            errors.append(f"runpod: {exc}")
+
+    if not instances:
+        raise RuntimeError(
+            "No instances returned from any provider. Errors: " + "; ".join(errors)
+        )
+
+    if errors:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Some providers failed (others succeeded): %s", "; ".join(errors)
+        )
+
     return score(instances, carbon_weight=carbon_weight)
 
 

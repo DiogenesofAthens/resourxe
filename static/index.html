@@ -96,6 +96,7 @@
             <tr class="bg-slate-900 border-b border-slate-800 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
               <th class="px-5 py-3 w-8">#</th>
               <th class="px-5 py-3">GPU</th>
+              <th class="px-5 py-3 text-center">Provider</th>
               <th class="px-5 py-3 text-right">$/hr</th>
               <th class="px-5 py-3 text-center" title="Carbon intensity percentile — 0 = cleanest, 100 = dirtiest">Carbon %</th>
               <th class="px-5 py-3 text-right" title="Composite score (lower = better)">Score</th>
@@ -207,6 +208,16 @@
     });
   }
 
+  // ── Provider badge ───────────────────────────────────────────────────────
+  function providerBadge(provider) {
+    const map = {
+      vast:   'bg-violet-900/60 text-violet-300',
+      lambda: 'bg-blue-900/60 text-blue-300',
+      runpod: 'bg-orange-900/60 text-orange-300',
+    };
+    return map[provider] || 'bg-slate-800 text-slate-400';
+  }
+
   // ── Carbon badge ─────────────────────────────────────────────────────────
   function carbonCell(val) {
     if (val === null || val === undefined) {
@@ -254,7 +265,7 @@
       const res = await fetch('/api/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ carbon_weight: carbonWeight, limit: 50, top_n: 10 }),
+        body: JSON.stringify({ carbon_weight: carbonWeight, limit: 50, top_n: 10, providers: null }),
       });
       clearStepTimers();
       showStep(null, true);  // mark last spinner done
@@ -293,8 +304,9 @@
 
     document.getElementById('resultsHeading').textContent =
       `Top ${data.results.length} instances`;
+    const providerList = (data.providers || []).join(', ') || 'unknown';
     document.getElementById('resultsSubhead').textContent =
-      `ranked by ${label} · ${data.total_fetched} fetched`;
+      `ranked by ${label} · ${data.total_fetched} fetched from ${providerList}`;
 
     const tbody = document.getElementById('resultsBody');
     tbody.innerHTML = '';
@@ -305,6 +317,7 @@
       tr.innerHTML = `
         <td class="px-5 py-4 text-slate-600 mono text-xs">${r.rank}</td>
         <td class="px-5 py-4 font-medium">${r.gpu_model}</td>
+        <td class="px-5 py-4 text-center"><span class="px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wide ${providerBadge(r.provider)}">${r.provider}</span></td>
         <td class="px-5 py-4 text-right mono text-green-400 font-medium">$${r.price_per_hour.toFixed(4)}</td>
         ${carbonCell(r.carbon_index)}
         <td class="px-5 py-4 text-right mono text-slate-400">${r.composite_score.toFixed(3)}</td>
