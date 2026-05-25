@@ -68,13 +68,24 @@
         <span id="weightLabel" class="text-base font-semibold text-green-400">Balanced — 50% cost · 50% carbon</span>
       </div>
 
-      <button
-        id="searchBtn"
-        onclick="runQuery()"
-        class="w-full bg-green-500 hover:bg-green-400 active:bg-green-600 text-slate-950 font-semibold py-3.5 px-6 rounded-xl transition-all duration-150 text-base"
-      >
-        Find GPUs
-      </button>
+      <div class="flex gap-3">
+        <button
+          id="searchBtn"
+          onclick="runQuery(false)"
+          class="flex-1 bg-green-500 hover:bg-green-400 active:bg-green-600 text-slate-950 font-semibold py-3.5 px-6 rounded-xl transition-all duration-150 text-base"
+        >
+          Find GPUs
+        </button>
+        <button
+          id="demoBtn"
+          onclick="runQuery(true)"
+          title="See results instantly using a cached dataset — no API keys required"
+          class="px-5 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-medium rounded-xl transition-all duration-150 text-sm border border-slate-700 hover:border-slate-500 whitespace-nowrap"
+        >
+          ⚡ Try Demo
+        </button>
+      </div>
+      <p class="text-center text-xs text-slate-600 mt-2">Live query takes ~30 s · Demo is instant</p>
     </div>
 
     <!-- LOADING -->
@@ -98,7 +109,7 @@
               <th class="px-5 py-3">GPU</th>
               <th class="px-5 py-3 text-center">Provider</th>
               <th class="px-5 py-3 text-right">$/hr</th>
-              <th class="px-5 py-3 text-center" title="Carbon intensity percentile — 0 = cleanest, 100 = dirtiest">Carbon %</th>
+              <th class="px-5 py-3 text-center" title="Carbon intensity percentile (0 = cleanest grid, 100 = dirtiest). Roughly: index 0 ≈ 20 g CO₂/kWh, index 100 ≈ 700 g CO₂/kWh.">Carbon %</th>
               <th class="px-5 py-3 text-right" title="Composite score (lower = better)">Score</th>
               <th class="px-5 py-3">Location</th>
               <th class="px-5 py-3 text-center">GPUs</th>
@@ -110,15 +121,15 @@
       </div>
 
       <!-- LEGEND -->
-      <div class="mt-4 flex items-center gap-6 text-xs text-slate-500">
+      <div class="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-500">
         <div class="flex items-center gap-2">
-          <span class="inline-block w-2.5 h-2.5 rounded-full bg-green-500"></span> Clean grid (&lt;34)
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-green-500"></span> Clean grid (&lt;34) · ~20–250 g CO₂/kWh
         </div>
         <div class="flex items-center gap-2">
-          <span class="inline-block w-2.5 h-2.5 rounded-full bg-yellow-500"></span> Moderate (34–66)
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-yellow-500"></span> Moderate (34–66) · ~250–470 g CO₂/kWh
         </div>
         <div class="flex items-center gap-2">
-          <span class="inline-block w-2.5 h-2.5 rounded-full bg-red-500"></span> Dirty grid (&gt;66)
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-red-500"></span> Dirty grid (&gt;66) · ~470–700 g CO₂/kWh
         </div>
         <div class="flex items-center gap-2 ml-auto">
           Carbon % via <a href="https://www.watttime.org" target="_blank" class="underline hover:text-slate-300">WattTime</a>
@@ -219,20 +230,29 @@
   }
 
   // ── Carbon badge ─────────────────────────────────────────────────────────
+  // Translate the 0-100 percentile index into approximate g CO₂/kWh context.
+  // US grid ranges roughly 20 g/kWh (cleanest) to 700 g/kWh (dirtiest).
+  function carbonToGrams(index) {
+    return Math.round(20 + (index / 100) * 680);
+  }
+
   function carbonCell(val) {
     if (val === null || val === undefined) {
       return `<td class="px-5 py-4 text-center"><span class="text-slate-600 mono">—</span></td>`;
     }
     const n = Math.round(val);
+    const gCO2 = carbonToGrams(n);
     let dot = 'bg-green-500';
     let text = 'text-green-400';
-    if (n > 66) { dot = 'bg-red-500'; text = 'text-red-400'; }
-    else if (n > 33) { dot = 'bg-yellow-500'; text = 'text-yellow-400'; }
+    let label = 'Clean';
+    if (n > 66) { dot = 'bg-red-500'; text = 'text-red-400'; label = 'Dirty'; }
+    else if (n > 33) { dot = 'bg-yellow-500'; text = 'text-yellow-400'; label = 'Moderate'; }
     return `
-      <td class="px-5 py-4 text-center">
+      <td class="px-5 py-4 text-center" title="${label} grid · ~${gCO2} g CO₂/kWh">
         <span class="inline-flex items-center gap-1.5 mono ${text} font-medium">
           <span class="w-2 h-2 rounded-full ${dot} shrink-0"></span>${n}
         </span>
+        <div class="text-[10px] text-slate-600 mt-0.5">~${gCO2} g/kWh</div>
       </td>`;
   }
 
@@ -247,28 +267,44 @@
   }
 
   // ── Main query ────────────────────────────────────────────────────────────
-  async function runQuery() {
+  async function runQuery(isDemo = false) {
     const carbonWeight = parseFloat(weightInput.value);
-    const btn = document.getElementById('searchBtn');
+    const liveBtn = document.getElementById('searchBtn');
+    const demoBtn = document.getElementById('demoBtn');
 
-    btn.disabled = true;
-    btn.textContent = 'Searching…';
-    btn.classList.add('opacity-75', 'cursor-not-allowed');
+    liveBtn.disabled = true;
+    demoBtn.disabled = true;
+    liveBtn.textContent = isDemo ? 'Find GPUs' : 'Searching…';
+    demoBtn.textContent = isDemo ? '⏳ Loading…' : '⚡ Try Demo';
+    if (!isDemo) liveBtn.classList.add('opacity-75', 'cursor-not-allowed');
 
     document.getElementById('results').classList.add('hidden');
     document.getElementById('errorBox').classList.add('hidden');
     document.getElementById('loading').classList.remove('hidden');
     setStatus('loading');
-    startSteps();
+
+    if (isDemo) {
+      // Skip the animated steps for demo — just show a single fast spinner
+      document.getElementById('loadingSteps').innerHTML = `
+        <div class="flex items-center gap-3 text-slate-400">
+          <svg class="w-4 h-4 mt-0.5 shrink-0 spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+          </svg>
+          <span>Loading cached demo results…</span>
+        </div>`;
+    } else {
+      startSteps();
+    }
 
     try {
       const res = await fetch('/api/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ carbon_weight: carbonWeight, limit: 50, top_n: 10, providers: null }),
+        body: JSON.stringify({ carbon_weight: carbonWeight, limit: 50, top_n: 10, demo: isDemo }),
       });
       clearStepTimers();
-      showStep(null, true);  // mark last spinner done
+      showStep(null, true);
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -286,9 +322,11 @@
       box.classList.remove('hidden');
       setStatus('error');
     } finally {
-      btn.disabled = false;
-      btn.textContent = 'Find GPUs';
-      btn.classList.remove('opacity-75', 'cursor-not-allowed');
+      liveBtn.disabled = false;
+      demoBtn.disabled = false;
+      liveBtn.textContent = 'Find GPUs';
+      demoBtn.textContent = '⚡ Try Demo';
+      liveBtn.classList.remove('opacity-75', 'cursor-not-allowed');
     }
   }
 
@@ -302,8 +340,11 @@
     else if (w === 1) label = 'carbon only';
     else label = `${Math.round(w * 100)}% carbon / ${Math.round((1 - w) * 100)}% price`;
 
-    document.getElementById('resultsHeading').textContent =
-      `Top ${data.results.length} instances`;
+    const demoBadge = data.demo
+      ? ' <span class="ml-2 text-xs font-normal px-2 py-0.5 rounded-full bg-amber-900/60 text-amber-300">demo snapshot</span>'
+      : '';
+    document.getElementById('resultsHeading').innerHTML =
+      `Top ${data.results.length} instances${demoBadge}`;
     const providerList = (data.providers || []).join(', ') || 'unknown';
     document.getElementById('resultsSubhead').textContent =
       `ranked by ${label} · ${data.total_fetched} fetched from ${providerList}`;
@@ -333,9 +374,9 @@
     resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  // Allow Enter key to trigger search
+  // Allow Enter key to trigger live search
   document.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !document.getElementById('searchBtn').disabled) runQuery();
+    if (e.key === 'Enter' && !document.getElementById('searchBtn').disabled) runQuery(false);
   });
 </script>
 
