@@ -68,6 +68,21 @@ def index():
     return FileResponse(os.path.join(_HERE, "static", "index.html"))
 
 
+@app.get("/robots.txt")
+def robots():
+    return FileResponse(os.path.join(_HERE, "static", "robots.txt"), media_type="text/plain")
+
+
+@app.get("/sitemap.xml")
+def sitemap():
+    return FileResponse(os.path.join(_HERE, "static", "sitemap.xml"), media_type="application/xml")
+
+
+@app.get("/llms.txt")
+def llms():
+    return FileResponse(os.path.join(_HERE, "static", "llms.txt"), media_type="text/plain")
+
+
 @app.get("/api/health")
 def health():
     return {"status": "ok"}

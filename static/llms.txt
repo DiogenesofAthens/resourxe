@@ -1,0 +1,37 @@
+# ResourXe
+
+> Find the cheapest, greenest GPU for your workload. Live pricing from Vast.ai, cross-referenced with real-time grid carbon intensity.
+
+## What ResourXe Does
+
+ResourXe is a GPU compute routing engine that helps AI/ML practitioners find the optimal cloud GPU instance by scoring available machines across two dimensions:
+
+1. **Price** — live rental cost per hour from Vast.ai
+2. **Carbon intensity** — real-time grid carbon intensity (g CO₂/kWh) at each server's physical location, sourced from WattTime
+
+Users control the weighting between cost and carbon with a single slider (0 = cheapest only, 1 = greenest only, 0.5 = balanced). The engine returns a ranked list of instances.
+
+## How the Scoring Works
+
+1. Fetch available GPU instances from Vast.ai API
+2. Geocode each server's location using OpenStreetMap Nominatim
+3. Fetch real-time carbon signal index (0–100 percentile) from WattTime for each location
+4. Normalize price and carbon scores independently using min-max normalization
+5. Compute `composite_score = (1 - carbon_weight) × price_score + carbon_weight × carbon_score`
+6. Return top N instances sorted by composite score
+
+Carbon percentile interpretation: 0 = cleanest grid (~20 g CO₂/kWh), 100 = dirtiest (~700 g CO₂/kWh). US average is roughly 400 g CO₂/kWh.
+
+## Architecture
+
+- `engine/vast.py` — Vast.ai API integration
+- `engine/watttime.py` — WattTime carbon intensity integration
+- `engine/scorer.py` — Composite scoring and ranking
+- `app.py` — FastAPI web server
+- `static/index.html` — Single-page frontend
+
+## Site
+
+Live at https://resourxe.vercel.app
+
+Built by Kirk Wessman (https://kirkwessman.com). GitHub: https://github.com/DiogenesofAthens/resourxe
