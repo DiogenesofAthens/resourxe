@@ -50,6 +50,8 @@
     .spin { animation: spin 1s linear infinite; }
     .carbon-bar { height: 4px; border-radius: 9999px; transition: width .6s ease; }
   </style>
+<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
+<script defer src="/_vercel/insights/script.js"></script>
 </head>
 
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
@@ -172,6 +174,32 @@
 
     <!-- ERROR -->
     <div id="errorBox" class="hidden bg-red-950/50 border border-red-800 rounded-xl p-6 text-red-300 text-sm"></div>
+
+    <!-- PILOT CTA -->
+    <div id="pilotCta" class="mt-12 bg-slate-900 border border-slate-800 rounded-2xl p-8">
+      <h2 class="text-xl font-bold mb-2">Route your GPU spend through ResourXe</h2>
+      <p class="text-slate-400 text-sm mb-6">
+        Running training or inference workloads? Join the pilot — we'll route your jobs to the
+        cheapest, greenest compute across providers and show you the savings.
+      </p>
+      <form id="pilotForm" class="flex flex-col sm:flex-row gap-3">
+        <input
+          id="pilotEmail" type="email" required placeholder="work@company.com"
+          class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-green-500"
+        />
+        <input
+          id="pilotCompany" type="text" placeholder="Company (optional)"
+          class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-green-500"
+        />
+        <button
+          type="submit" id="pilotBtn"
+          class="bg-green-500 hover:bg-green-400 active:bg-green-600 text-slate-950 font-semibold py-3 px-6 rounded-xl transition-all duration-150 text-sm whitespace-nowrap"
+        >
+          Request Pilot Access
+        </button>
+      </form>
+      <p id="pilotMsg" class="hidden mt-3 text-sm"></p>
+    </div>
 
   </main>
 
@@ -408,7 +436,41 @@
 
   // Allow Enter key to trigger live search
   document.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !document.getElementById('searchBtn').disabled) runQuery(false);
+    if (e.key === 'Enter' && !document.getElementById('searchBtn').disabled
+        && !e.target.closest('#pilotForm')) runQuery(false);
+  });
+
+  // ── Pilot access form ─────────────────────────────────────────────────────
+  document.getElementById('pilotForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('pilotBtn');
+    const msg = document.getElementById('pilotMsg');
+    const email = document.getElementById('pilotEmail').value.trim();
+    const company = document.getElementById('pilotCompany').value.trim();
+
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+    msg.classList.add('hidden');
+
+    try {
+      const res = await fetch('/api/lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, company }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Something went wrong');
+      }
+      document.getElementById('pilotForm').classList.add('hidden');
+      msg.textContent = "You're on the list — we'll reach out about the pilot.";
+      msg.className = 'mt-3 text-sm text-green-400';
+    } catch (err) {
+      msg.textContent = err.message + '. Please try again.';
+      msg.className = 'mt-3 text-sm text-red-400';
+      btn.disabled = false;
+      btn.textContent = 'Request Pilot Access';
+    }
   });
 </script>
 

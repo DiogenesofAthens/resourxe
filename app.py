@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+from typing import List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -12,6 +13,7 @@ from pydantic import BaseModel, Field
 import uvicorn
 
 from engine import scorer
+import leads
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -56,7 +58,9 @@ class QueryRequest(BaseModel):
     limit: int = Field(default=50, ge=1, le=100)
     top_n: int = Field(default=10, ge=1, le=50)
     demo: bool = Field(default=False, description="Return cached demo data instantly (no live API calls)")
-    providers: list[str] | None = Field(
+    # typing.Optional (not `| None`) — pydantic must evaluate this at runtime
+    # and the local Python 3.9 runtime can't resolve PEP 604 unions
+    providers: Optional[List[str]] = Field(
         default=None,
         description="Restrict to specific providers: 'vast', 'lambda', 'runpod'. "
                     "Omit to query all configured providers.",
@@ -86,6 +90,23 @@ def llms():
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+class LeadRequest(BaseModel):
+    email: str
+    company: str = ""
+    use_case: str = ""
+
+
+@app.post("/api/lead")
+def lead(req: LeadRequest):
+    if not leads.is_valid_email(req.email.strip().lower()):
+        raise HTTPException(status_code=400, detail="Invalid email address")
+    try:
+        leads.send_lead(req.email.strip().lower(), req.company.strip(), req.use_case.strip())
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to submit. Please try again.")
+    return {"ok": True}
 
 
 @app.post("/api/query")

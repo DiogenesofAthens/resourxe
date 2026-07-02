@@ -9,6 +9,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from engine import scorer
+import leads
 
 app = FastAPI(title="ResourXe")
 
@@ -40,6 +41,23 @@ class QueryRequest(BaseModel):
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+class LeadRequest(BaseModel):
+    email: str
+    company: str = ""
+    use_case: str = ""
+
+
+@app.post("/api/lead")
+def lead(req: LeadRequest):
+    if not leads.is_valid_email(req.email.strip().lower()):
+        raise HTTPException(status_code=400, detail="Invalid email address")
+    try:
+        leads.send_lead(req.email.strip().lower(), req.company.strip(), req.use_case.strip())
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to submit. Please try again.")
+    return {"ok": True}
 
 
 @app.post("/api/query")
