@@ -104,8 +104,9 @@ def lead(req: LeadRequest):
         raise HTTPException(status_code=400, detail="Invalid email address")
     try:
         leads.send_lead(req.email.strip().lower(), req.company.strip(), req.use_case.strip())
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to submit. Please try again.")
+    except Exception as exc:
+        print(f"[lead] send failed: {exc}")
+        raise HTTPException(status_code=500, detail=f"Failed to submit ({str(exc)[:200]})")
     return {"ok": True}
 
 

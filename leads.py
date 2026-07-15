@@ -3,15 +3,20 @@
 Env vars:
     RESEND_API_KEY — Resend API key. When unset, leads are logged and the
     endpoint still returns ok so the form works in local dev.
+    LEAD_NOTIFY_EMAIL — where notifications go (default kwessman@gmail.com).
+    Resend accounts without a verified domain can only send to the account
+    owner's own address — if the key belongs to a different account, set
+    this to that account's email.
 """
 from __future__ import annotations
 
 import json
 import os
 import re
+import urllib.error
 import urllib.request
 
-NOTIFY_EMAIL = "kwessman@gmail.com"
+NOTIFY_EMAIL = os.environ.get("LEAD_NOTIFY_EMAIL", "kwessman@gmail.com")
 FROM_ADDRESS = "ResourXe <onboarding@resend.dev>"
 
 _EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
@@ -53,6 +58,12 @@ def send_lead(email: str, company: str = "", use_case: str = "") -> None:
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        if resp.status >= 300:
-            raise RuntimeError(f"Resend returned {resp.status}")
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            if resp.status >= 300:
+                raise RuntimeError(f"Resend returned {resp.status}")
+    except urllib.error.HTTPError as exc:
+        # Read Resend's error body — it says exactly why the send was rejected
+        # (e.g. test-mode recipient restriction), which the status alone doesn't.
+        body = exc.read().decode("utf-8", errors="replace")[:500]
+        raise RuntimeError(f"Resend {exc.code}: {body}") from exc
