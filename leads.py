@@ -55,6 +55,9 @@ def send_lead(email: str, company: str = "", use_case: str = "") -> None:
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
+            # Cloudflare bans urllib's default Python-urllib/3.x agent
+            # in front of api.resend.com (error 1010)
+            "User-Agent": "resourxe-leads/1.0",
         },
         method="POST",
     )
